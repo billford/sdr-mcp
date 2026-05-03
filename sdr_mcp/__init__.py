@@ -23,7 +23,7 @@ Modules:
     config: Configuration file and environment handling
 
 For more information, see:
-    https://github.com/YOUR_USERNAME/sdr-mcp
+    https://github.com/billford/sdr-mcp
 """
 
 __version__ = "0.1.0"

@@ -32,9 +32,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/sdr-mcp"
-Repository = "https://github.com/YOUR_USERNAME/sdr-mcp"
-Issues = "https://github.com/YOUR_USERNAME/sdr-mcp/issues"
+Homepage = "https://github.com/billford/sdr-mcp"
+Repository = "https://github.com/billford/sdr-mcp"
+Issues = "https://github.com/billford/sdr-mcp/issues"
 
 [build-system]
 requires = ["hatchling"]

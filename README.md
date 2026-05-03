@@ -25,7 +25,7 @@ An MCP (Model Context Protocol) server that gives Claude Desktop real-time acces
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/sdr-mcp.git
+git clone https://github.com/billford/sdr-mcp.git
 cd sdr-mcp
 
 # Create virtual environment
