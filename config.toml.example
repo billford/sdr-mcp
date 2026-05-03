@@ -1,0 +1,12 @@
+# SDR MCP Server Configuration
+# Copy to config.toml to use
+
+[sdr]
+gain = "auto"                    # or numeric value like 40
+sample_rate = 2048000            # 2.048 MSPS standard
+stale_timeout_seconds = 60.0     # Remove aircraft after this many seconds
+noise_floor_threshold_db = 6.0   # Minimum SNR to report signals
+
+[logging]
+level = "INFO"                   # DEBUG, INFO, WARNING, ERROR
+# file = "/tmp/sdr-mcp.log"      # Optional log file

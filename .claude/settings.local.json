@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3.11 -m venv:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(python3:*)",
+      "Bash(python -c:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(pytest:*)",
+      "Bash(wc:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
