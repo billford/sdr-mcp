@@ -70,9 +70,10 @@ logger = logging.getLogger(__name__)
 # ADS-B operates on 1090 MHz
 ADSB_FREQUENCY_MHZ = 1090.0
 
-# 2 MSPS provides 2 samples per bit (1µs bit period)
-# This is the standard sample rate for RTL-SDR ADS-B reception
-ADSB_SAMPLE_RATE = 2.0e6
+# Must match hardware.py DEFAULT_SAMPLE_RATE (2.048 MSPS)
+# At this rate we get ~2 samples per bit (1µs bit period)
+# Using wrong rate here causes sample accumulation → USB overflow
+ADSB_SAMPLE_RATE = 2.048e6
 
 # Remove aircraft from tracking after this many seconds without updates
 STALE_TIMEOUT_SECONDS = 60.0
