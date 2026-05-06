@@ -4,9 +4,8 @@ import time
 import pytest
 from unittest.mock import patch, MagicMock
 
-from sdr_mcp.adsb import ADSBMonitor, get_adsb_monitor, ADSB_FREQUENCY_MHZ
+from sdr_mcp.adsb import ADSBMonitor, get_adsb_monitor
 from sdr_mcp.models import Aircraft
-from sdr_mcp.hardware import HardwareState
 
 
 class TestADSBMonitor:
@@ -22,40 +21,6 @@ class TestADSBMonitor:
         assert monitor._running is False
         assert monitor._aircraft == {}
         assert monitor._total_aircraft_seen == 0
-
-    def test_start_sets_adsb_state(self, monitor, device):
-        """Test that start() sets device to ADSB_ACTIVE."""
-        # Prevent actual capture loop from running
-        with patch.object(monitor, '_capture_loop'):
-            monitor.start(device)
-            assert device.state == HardwareState.ADSB_ACTIVE
-            assert monitor._running is True
-            monitor._running = False  # Clean up
-
-    def test_start_tunes_to_1090(self, monitor, device):
-        """Test that start() tunes to 1090 MHz."""
-        with patch.object(monitor, '_capture_loop'):
-            monitor.start(device)
-            assert device.current_frequency_mhz == ADSB_FREQUENCY_MHZ
-            monitor._running = False
-
-    def test_stop_returns_stats(self, monitor, device):
-        """Test that stop() returns session statistics."""
-        with patch.object(monitor, '_capture_loop'):
-            monitor.start(device)
-            time.sleep(0.1)  # Brief delay for duration
-            stats = monitor.stop()
-
-            assert "total_aircraft" in stats
-            assert "duration_seconds" in stats
-            assert stats["duration_seconds"] >= 0.1
-
-    def test_stop_sets_idle_state(self, monitor, device):
-        """Test that stop() returns device to IDLE."""
-        with patch.object(monitor, '_capture_loop'):
-            monitor.start(device)
-            monitor.stop()
-            assert device.state == HardwareState.IDLE
 
     def test_get_aircraft_empty(self, monitor):
         """Test get_aircraft with no aircraft."""
@@ -104,28 +69,75 @@ class TestADSBMonitor:
         assert result[1].icao_hex == "THIRD"
         assert result[2].icao_hex == "FIRST"
 
+    def test_stop_returns_stats(self, monitor):
+        """Test that stop() returns session statistics."""
+        monitor._start_time = time.time() - 1.0
+        monitor._running = True
+        monitor._total_aircraft_seen = 5
 
-class TestADSBMessageDecoding:
-    """Tests for ADS-B message decoding helpers."""
+        with patch('sdr_mcp.adsb.get_device'):
+            stats = monitor.stop()
+
+        assert stats["total_aircraft"] == 5
+        assert stats["duration_seconds"] >= 1.0
+
+    def test_start_requires_rtl_adsb(self, monitor):
+        """Test that start() requires rtl_adsb binary."""
+        with patch('shutil.which', return_value=None):
+            with pytest.raises(RuntimeError, match="rtl_adsb not found"):
+                monitor.start()
+
+    def test_start_requires_pymodes(self, monitor):
+        """Test that start() requires pyModeS."""
+        with patch('sdr_mcp.adsb.PYMODES_AVAILABLE', False):
+            with pytest.raises(RuntimeError, match="pyModeS not available"):
+                monitor.start()
+
+
+class TestADSBLineProcessing:
+    """Tests for rtl_adsb output line processing."""
 
     @pytest.fixture
     def monitor(self):
         return ADSBMonitor()
 
-    def test_bits_to_hex(self, monitor):
-        """Test bit string to hex conversion."""
-        # 8 bits = 2 hex chars
-        bits = ['1', '1', '1', '1', '0', '0', '0', '0']  # 0xF0
-        result = monitor._bits_to_hex(bits)
-        assert result == "f0"
+    def test_process_line_valid_message(self, monitor):
+        """Test processing valid rtl_adsb output line."""
+        # Real DF17 ADS-B message (28 hex chars)
+        with patch.object(monitor, '_decode_message') as mock_decode:
+            monitor._process_line("*8da8e1f6ea485864ed5c0898d970;")
+            mock_decode.assert_called_once_with("8da8e1f6ea485864ed5c0898d970")
 
-    def test_bits_to_hex_full_message(self, monitor):
-        """Test conversion of full message length."""
-        # 112 bits = 28 hex chars
-        bits = ['0'] * 112
-        result = monitor._bits_to_hex(bits)
-        assert len(result) == 28
-        assert result == "0" * 28
+    def test_process_line_ignores_invalid_prefix(self, monitor):
+        """Test that lines without * prefix are ignored."""
+        with patch.object(monitor, '_decode_message') as mock_decode:
+            monitor._process_line("8da8e1f6ea485864ed5c0898d970;")
+            mock_decode.assert_not_called()
+
+    def test_process_line_ignores_invalid_suffix(self, monitor):
+        """Test that lines without ; suffix are ignored."""
+        with patch.object(monitor, '_decode_message') as mock_decode:
+            monitor._process_line("*8da8e1f6ea485864ed5c0898d970")
+            mock_decode.assert_not_called()
+
+    def test_process_line_ignores_wrong_length(self, monitor):
+        """Test that messages with wrong length are ignored."""
+        with patch.object(monitor, '_decode_message') as mock_decode:
+            # Too short
+            monitor._process_line("*8da8e1f6;")
+            mock_decode.assert_not_called()
+
+            # Too long
+            monitor._process_line("*8da8e1f6ea485864ed5c0898d970abcd;")
+            mock_decode.assert_not_called()
+
+
+class TestADSBMessageDecoding:
+    """Tests for ADS-B message decoding."""
+
+    @pytest.fixture
+    def monitor(self):
+        return ADSBMonitor()
 
     def test_prune_stale(self, monitor):
         """Test stale aircraft removal."""

@@ -309,11 +309,12 @@ async def handle_start_adsb_monitor() -> list[TextContent]:
     """Handle start_adsb_monitor tool call."""
     from .adsb import get_adsb_monitor
 
+    # Check device is idle (not scanning)
     device = get_device()
     device.require_idle()
 
     monitor = get_adsb_monitor()
-    monitor.start(device)
+    monitor.start()  # rtl_adsb subprocess manages device directly
 
     return [TextContent(
         type="text",

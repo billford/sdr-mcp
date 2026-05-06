@@ -18,27 +18,15 @@ Message Types Decoded:
     - TC 9-18: Airborne position (altitude, lat/lon)
     - TC 19: Airborne velocity (speed, heading, vertical rate)
 
-Decoding Pipeline:
-    1. Capture IQ samples at 2 MSPS on 1090 MHz
-    2. AM demodulate (magnitude of complex samples)
-    3. Detect preamble pattern (8µs specific pulse sequence)
-    4. Extract 112-bit message following preamble
-    5. Verify CRC-24 checksum
-    6. Decode using pyModeS library
-    7. Update aircraft state dictionary
-
-Limitations:
-    - Position decoding requires both odd and even CPR frames
-      (this simplified implementation may not always have both)
-    - Mode C transponders only provide altitude, not position
-    - Range depends on antenna quality and local RF environment
+Implementation:
+    Uses rtl_adsb subprocess for reliable signal detection and demodulation.
+    The C-based rtl_adsb provides optimized preamble detection and bit
+    extraction. We parse its output and decode messages using pyModeS.
 
 Example:
-    >>> from sdr_mcp.hardware import get_device
     >>> from sdr_mcp.adsb import get_adsb_monitor
-    >>> device = get_device()
     >>> monitor = get_adsb_monitor()
-    >>> monitor.start(device)
+    >>> monitor.start()
     >>> # Wait for aircraft...
     >>> aircraft = monitor.get_aircraft()
     >>> for ac in aircraft:
@@ -47,11 +35,11 @@ Example:
 """
 
 import logging
+import shutil
+import subprocess
 import threading
 import time
-from typing import Dict, List, Optional, TYPE_CHECKING
-
-import numpy as np
+from typing import Dict, List, Optional
 
 try:
     import pyModeS as pms
@@ -60,67 +48,80 @@ except ImportError:
     PYMODES_AVAILABLE = False
 
 from .models import Aircraft
-from .hardware import HardwareState
-
-if TYPE_CHECKING:
-    from .hardware import RTLSDRDevice
+from .hardware import HardwareState, get_device
 
 logger = logging.getLogger(__name__)
-
-# ADS-B operates on 1090 MHz
-ADSB_FREQUENCY_MHZ = 1090.0
-
-# Must match hardware.py DEFAULT_SAMPLE_RATE (2.048 MSPS)
-# At this rate we get ~2 samples per bit (1µs bit period)
-# Using wrong rate here causes sample accumulation → USB overflow
-ADSB_SAMPLE_RATE = 2.048e6
 
 # Remove aircraft from tracking after this many seconds without updates
 STALE_TIMEOUT_SECONDS = 60.0
 
 
 class ADSBMonitor:
-    """Background ADS-B decoder using pyModeS."""
+    """Background ADS-B decoder using rtl_adsb subprocess."""
 
     def __init__(self):
         self._aircraft: Dict[str, Aircraft] = {}
         self._lock = threading.RLock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
-        self._device = None
+        self._process: Optional[subprocess.Popen] = None
         self._start_time: Optional[float] = None
         self._total_aircraft_seen = 0
 
-    def start(self, device) -> None:
-        """Start ADS-B monitoring."""
+    def start(self, device=None) -> None:
+        """Start ADS-B monitoring.
+
+        Args:
+            device: Optional device parameter (ignored, kept for API compat).
+                    We use rtl_adsb which manages the device directly.
+        """
         if self._running:
             return
 
         if not PYMODES_AVAILABLE:
             raise RuntimeError("pyModeS not available")
 
+        # Check rtl_adsb is available
+        if not shutil.which("rtl_adsb"):
+            raise RuntimeError("rtl_adsb not found. Install rtl-sdr tools.")
+
         # Clean up any stale thread from a previous crash
         if self._thread is not None and not self._thread.is_alive():
             self._thread = None
 
-        self._device = device
         self._aircraft.clear()
         self._total_aircraft_seen = 0
         self._start_time = time.time()
         self._running = True
 
-        # Configure device for ADS-B
-        device.set_state(HardwareState.ADSB_ACTIVE)
-        device.tune(ADSB_FREQUENCY_MHZ)
+        # Mark hardware as ADS-B active (for status reporting)
+        try:
+            dev = get_device()
+            dev.set_state(HardwareState.ADSB_ACTIVE)
+        except Exception as e:
+            logger.warning(f"Could not set hardware state: {e}")
 
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
 
-        logger.info("ADS-B monitor started")
+        logger.info("ADS-B monitor started (using rtl_adsb)")
 
     def stop(self) -> dict:
         """Stop ADS-B monitoring and return stats."""
         self._running = False
+
+        # Terminate rtl_adsb subprocess
+        if self._process:
+            try:
+                self._process.terminate()
+                self._process.wait(timeout=2.0)
+            except Exception as e:
+                logger.warning(f"Error terminating rtl_adsb: {e}")
+                try:
+                    self._process.kill()
+                except Exception:
+                    pass
+            self._process = None
 
         if self._thread:
             self._thread.join(timeout=2.0)
@@ -128,12 +129,12 @@ class ADSBMonitor:
 
         duration = time.time() - self._start_time if self._start_time else 0
 
-        if self._device:
-            try:
-                self._device.set_state(HardwareState.IDLE)
-            except Exception as e:
-                logger.warning(f"Error resetting hardware state: {e}")
-            self._device = None
+        # Reset hardware state
+        try:
+            dev = get_device()
+            dev.set_state(HardwareState.IDLE)
+        except Exception as e:
+            logger.warning(f"Error resetting hardware state: {e}")
 
         stats = {
             "total_aircraft": self._total_aircraft_seen,
@@ -155,110 +156,51 @@ class ADSBMonitor:
             return sorted(result, key=lambda a: a.last_seen_timestamp, reverse=True)
 
     def _capture_loop(self) -> None:
-        """Background capture and decode loop."""
-        # Buffer size for ~0.5 second of samples
-        buffer_size = int(ADSB_SAMPLE_RATE * 0.5)
+        """Background loop that runs rtl_adsb and parses output."""
+        try:
+            # Start rtl_adsb subprocess
+            self._process = subprocess.Popen(
+                ["rtl_adsb"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,  # Line buffered
+            )
+            logger.info("rtl_adsb subprocess started")
 
-        while self._running:
-            try:
-                # Read raw IQ samples
-                samples = self._device.read_samples(buffer_size)
-                self._process_samples(samples)
-                self._prune_stale()
-            except Exception as e:
-                logger.error(f"ADS-B capture error: {e}")
-                # Do NOT retry on hardware error — the USB state is likely
-                # corrupt after an overflow or pipe error. Retrying causes
-                # a native crash (segfault in librtlsdr) that kills the
-                # entire server process.
-                # Instead, shut down cleanly and let the server survive.
-                self._running = False
+            # Read output lines
+            while self._running and self._process.poll() is None:
+                line = self._process.stdout.readline()
+                if line:
+                    self._process_line(line.strip())
+                    self._prune_stale()
+
+        except Exception as e:
+            logger.error(f"ADS-B capture error: {e}")
+        finally:
+            if self._process:
                 try:
-                    if self._device is not None:
-                        self._device.disconnect()
-                except Exception as cleanup_err:
-                    logger.warning(f"Error during hardware cleanup: {cleanup_err}")
-                finally:
-                    self._device = None
-                break
+                    self._process.terminate()
+                except Exception:
+                    pass
+                self._process = None
 
-    def _process_samples(self, samples: np.ndarray) -> None:
-        """Extract and decode ADS-B messages from IQ samples."""
-        # Convert complex IQ to magnitude (AM demodulation)
-        magnitude = np.abs(samples)
+    def _process_line(self, line: str) -> None:
+        """Process a line of rtl_adsb output.
 
-        # Simple threshold-based preamble detection
-        # ADS-B preamble: 8µs, consisting of specific pulse pattern
-        # At 2 MSPS, 8µs = 16 samples
-        threshold = np.mean(magnitude) + 2 * np.std(magnitude)
-
-        # Find potential message starts (simplified detection)
-        # Real implementation would use proper preamble correlation
-        messages = self._detect_messages(magnitude, threshold)
-
-        for msg_bits in messages:
-            self._decode_message(msg_bits)
-
-    def _detect_messages(self, magnitude: np.ndarray, threshold: float) -> List[str]:
-        """Detect ADS-B messages in magnitude data.
-
-        This is a simplified detector. Production code would use
-        proper preamble correlation and bit timing recovery.
+        rtl_adsb outputs lines like: *8da8e1f6ea485864ed5c0898d970;
         """
-        messages = []
-        # Samples per bit at 2 MSPS with 1µs bit period = 2 samples/bit
-        samples_per_bit = 2
-        msg_length_bits = 112  # Long ADS-B message
-        msg_length_samples = msg_length_bits * samples_per_bit
+        if not line.startswith("*") or not line.endswith(";"):
+            return
 
-        i = 0
-        while i < len(magnitude) - msg_length_samples - 16:
-            # Check for preamble pattern (simplified)
-            if magnitude[i] > threshold:
-                # Extract message samples
-                msg_start = i + 16  # Skip preamble
-                msg_samples = magnitude[msg_start:msg_start + msg_length_samples]
+        # Extract hex message (remove * prefix and ; suffix)
+        msg_hex = line[1:-1]
 
-                # Decode bits using Manchester-like decoding
-                bits = []
-                for j in range(0, len(msg_samples), samples_per_bit):
-                    if j + 1 < len(msg_samples):
-                        # Compare first and second half of bit period
-                        if msg_samples[j] > msg_samples[j + 1]:
-                            bits.append('1')
-                        else:
-                            bits.append('0')
+        # Validate length (28 hex chars = 112 bits)
+        if len(msg_hex) != 28:
+            return
 
-                if len(bits) >= 112:
-                    msg_hex = self._bits_to_hex(bits[:112])
-                    if msg_hex and self._check_crc(msg_hex):
-                        messages.append(msg_hex)
-
-                i += msg_length_samples
-            else:
-                i += 1
-
-        return messages
-
-    def _bits_to_hex(self, bits: List[str]) -> Optional[str]:
-        """Convert bit string to hex."""
-        try:
-            bit_string = ''.join(bits)
-            # Convert to hex, 4 bits at a time
-            hex_chars = []
-            for i in range(0, len(bit_string), 4):
-                nibble = bit_string[i:i+4]
-                hex_chars.append(format(int(nibble, 2), 'x'))
-            return ''.join(hex_chars)
-        except Exception:
-            return None
-
-    def _check_crc(self, msg_hex: str) -> bool:
-        """Check ADS-B message CRC."""
-        try:
-            return pms.crc(msg_hex) == 0
-        except Exception:
-            return False
+        self._decode_message(msg_hex)
 
     def _decode_message(self, msg_hex: str) -> None:
         """Decode ADS-B message and update aircraft state."""
