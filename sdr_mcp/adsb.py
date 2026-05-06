@@ -124,7 +124,10 @@ class ADSBMonitor:
         duration = time.time() - self._start_time if self._start_time else 0
 
         if self._device:
-            self._device.set_state(HardwareState.IDLE)
+            try:
+                self._device.set_state(HardwareState.IDLE)
+            except Exception as e:
+                logger.warning(f"Error resetting hardware state: {e}")
             self._device = None
 
         stats = {
@@ -159,7 +162,20 @@ class ADSBMonitor:
                 self._prune_stale()
             except Exception as e:
                 logger.error(f"ADS-B capture error: {e}")
-                time.sleep(0.1)
+                # Do NOT retry on hardware error — the USB state is likely
+                # corrupt after an overflow or pipe error. Retrying causes
+                # a native crash (segfault in librtlsdr) that kills the
+                # entire server process.
+                # Instead, shut down cleanly and let the server survive.
+                self._running = False
+                try:
+                    if self._device is not None:
+                        self._device.disconnect()
+                except Exception as cleanup_err:
+                    logger.warning(f"Error during hardware cleanup: {cleanup_err}")
+                finally:
+                    self._device = None
+                break
 
     def _process_samples(self, samples: np.ndarray) -> None:
         """Extract and decode ADS-B messages from IQ samples."""

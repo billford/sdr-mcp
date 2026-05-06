@@ -260,9 +260,14 @@ class RTLSDRDevice:
         Returns:
             numpy array of complex IQ samples.
         """
+        # Grab the sdr reference under lock, but release before blocking read
         with self._lock:
             self.require_connected()
-            return self._sdr.read_samples(num_samples)
+            sdr = self._sdr
+
+        # Blocking read happens outside the lock so other threads
+        # (e.g. sdr_status) are not starved for ~0.5 seconds
+        return sdr.read_samples(num_samples)
 
     def read_bytes(self, num_bytes: int) -> bytes:
         """Read raw bytes from the SDR.
