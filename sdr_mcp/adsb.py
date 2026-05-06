@@ -98,6 +98,10 @@ class ADSBMonitor:
         if not PYMODES_AVAILABLE:
             raise RuntimeError("pyModeS not available")
 
+        # Clean up any stale thread from a previous crash
+        if self._thread is not None and not self._thread.is_alive():
+            self._thread = None
+
         self._device = device
         self._aircraft.clear()
         self._total_aircraft_seen = 0

@@ -39,8 +39,12 @@ def device(mock_rtlsdr):
 
 @pytest.fixture
 def disconnected_device():
-    """Get a device instance without hardware connection."""
+    """Get a device instance without hardware connection.
+
+    Patches RTLSDR_AVAILABLE to False for the duration of the test.
+    """
     with patch('sdr_mcp.hardware.RTLSDR_AVAILABLE', False):
         with patch('sdr_mcp.hardware._IMPORT_ERROR', 'Test: no hardware'):
             from sdr_mcp.hardware import RTLSDRDevice
-            return RTLSDRDevice()
+            dev = RTLSDRDevice()
+            yield dev  # Keep patch active during test

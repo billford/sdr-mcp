@@ -282,6 +282,14 @@ async def handle_scan_band(arguments: dict) -> list[TextContent]:
     step_khz = arguments.get("step_khz", 25)
     dwell_ms = arguments.get("dwell_ms", 200)
 
+    # Validate frequency range isn't too large (prevent accidental hour-long scans)
+    max_range_mhz = 100  # Reasonable limit
+    if end_mhz - start_mhz > max_range_mhz:
+        return [TextContent(
+            type="text",
+            text=f"Scan range too large ({end_mhz - start_mhz} MHz). Maximum is {max_range_mhz} MHz."
+        )]
+
     device = get_device()
     device.require_idle()
 

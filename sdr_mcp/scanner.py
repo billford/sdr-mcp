@@ -138,12 +138,24 @@ def scan_band(
 
     Returns:
         List of ScanResult for signals above threshold, sorted by strength descending.
+
+    Raises:
+        ValueError: If start_mhz > end_mhz or step_khz <= 0.
     """
     from .hardware import HardwareState
+
+    # Input validation
+    if start_mhz > end_mhz:
+        raise ValueError(f"start_mhz ({start_mhz}) must be <= end_mhz ({end_mhz})")
+    if step_khz <= 0:
+        raise ValueError(f"step_khz must be positive, got {step_khz}")
+    if dwell_ms <= 0:
+        raise ValueError(f"dwell_ms must be positive, got {dwell_ms}")
 
     results = []
     step_mhz = step_khz / 1000.0
     current_mhz = start_mhz
+    errors = 0
 
     logger.info(f"Scanning {start_mhz}-{end_mhz} MHz, step={step_khz} kHz, dwell={dwell_ms} ms")
 
@@ -152,19 +164,28 @@ def scan_band(
 
     try:
         while current_mhz <= end_mhz:
-            reading = measure_frequency(device, current_mhz, dwell_ms)
+            try:
+                reading = measure_frequency(device, current_mhz, dwell_ms)
 
-            # Only include signals above threshold
-            if reading.snr_db >= threshold_db:
-                results.append(ScanResult(
-                    frequency_mhz=reading.frequency_mhz,
-                    strength_dbm=reading.signal_strength_dbm,
-                    snr_db=reading.snr_db,
-                ))
-                logger.debug(
-                    f"Signal at {current_mhz:.3f} MHz: "
-                    f"{reading.signal_strength_dbm:.1f} dBm, SNR {reading.snr_db:.1f} dB"
-                )
+                # Only include signals above threshold
+                if reading.snr_db >= threshold_db:
+                    results.append(ScanResult(
+                        frequency_mhz=reading.frequency_mhz,
+                        strength_dbm=reading.signal_strength_dbm,
+                        snr_db=reading.snr_db,
+                    ))
+                    logger.debug(
+                        f"Signal at {current_mhz:.3f} MHz: "
+                        f"{reading.signal_strength_dbm:.1f} dBm, SNR {reading.snr_db:.1f} dB"
+                    )
+            except Exception as e:
+                # Log but continue scanning other frequencies
+                logger.warning(f"Error measuring {current_mhz:.3f} MHz: {e}")
+                errors += 1
+                # If too many consecutive errors, abort
+                if errors > 10:
+                    logger.error("Too many measurement errors, aborting scan")
+                    break
 
             current_mhz += step_mhz
 

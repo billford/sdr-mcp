@@ -119,16 +119,19 @@ class TestScanBand:
         assert device.state == HardwareState.IDLE
 
     def test_returns_to_idle_on_error(self, device):
-        """Test that device returns to IDLE even on error."""
+        """Test that device returns to IDLE even when measurements fail."""
         device.set_state(HardwareState.IDLE)
 
-        # Force an error by making read_samples raise
+        # Force errors by making read_samples raise
         original = device._sdr.read_samples
         device._sdr.read_samples = lambda n: (_ for _ in ()).throw(RuntimeError("Test"))
 
         try:
-            with pytest.raises(RuntimeError):
-                scan_band(device, 144.0, 144.1, step_khz=50, dwell_ms=50)
+            # Scan should complete (with errors logged) rather than raise
+            # because individual frequency errors are now caught and skipped
+            results = scan_band(device, 144.0, 144.1, step_khz=50, dwell_ms=50)
+            # Should return empty results since all measurements failed
+            assert results == []
         finally:
             device._sdr.read_samples = original
 
