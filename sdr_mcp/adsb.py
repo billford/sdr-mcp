@@ -203,15 +203,20 @@ class ADSBMonitor:
         self._decode_message(msg_hex)
 
     def _decode_message(self, msg_hex: str) -> None:
-        """Decode ADS-B message and update aircraft state."""
-        try:
-            df = pms.df(msg_hex)
+        """Decode ADS-B message and update aircraft state.
 
+        Uses pyModeS 3.x decode() API which returns a dictionary.
+        """
+        try:
+            # pyModeS 3.x API: decode returns dict with all fields
+            decoded = pms.decode(msg_hex)
+
+            df = decoded.get('df')
             # Only process DF17 (ADS-B) and DF11 (All-Call Reply)
             if df not in [17, 11]:
                 return
 
-            icao = pms.icao(msg_hex)
+            icao = decoded.get('icao')
             if not icao:
                 return
 
@@ -224,33 +229,24 @@ class ADSBMonitor:
                 ac = self._aircraft[icao]
                 ac.last_seen_timestamp = time.time()
 
-                if df == 17:
-                    tc = pms.adsb.typecode(msg_hex)
+                # Extract available data from decoded message
+                if 'callsign' in decoded and decoded['callsign']:
+                    ac.callsign = decoded['callsign'].strip()
 
-                    # Aircraft identification (TC 1-4)
-                    if 1 <= tc <= 4:
-                        callsign = pms.adsb.callsign(msg_hex)
-                        if callsign:
-                            ac.callsign = callsign.strip()
+                if 'altitude' in decoded and decoded['altitude']:
+                    ac.altitude_ft = decoded['altitude']
 
-                    # Airborne position (TC 9-18)
-                    elif 9 <= tc <= 18:
-                        alt = pms.adsb.altitude(msg_hex)
-                        if alt:
-                            ac.altitude_ft = alt
+                if 'speed' in decoded and decoded['speed']:
+                    ac.speed_kts = decoded['speed']
 
-                        # Position requires odd/even frame pair - simplified here
-                        # Full implementation would track frame pairs
+                if 'heading' in decoded and decoded['heading']:
+                    ac.heading_deg = decoded['heading']
 
-                    # Airborne velocity (TC 19)
-                    elif tc == 19:
-                        velocity = pms.adsb.velocity(msg_hex)
-                        if velocity:
-                            speed, heading, vrate, _ = velocity
-                            if speed:
-                                ac.speed_kts = speed
-                            if heading:
-                                ac.heading_deg = heading
+                if 'latitude' in decoded and decoded['latitude']:
+                    ac.latitude = decoded['latitude']
+
+                if 'longitude' in decoded and decoded['longitude']:
+                    ac.longitude = decoded['longitude']
 
         except Exception as e:
             logger.debug(f"Decode error: {e}")
