@@ -10,7 +10,7 @@ An MCP (Model Context Protocol) server that gives Claude Desktop real-time acces
 
 - **Frequency Tuning** — Tune to any frequency and measure signal strength, noise floor, and SNR
 - **Band Scanning** — FFT-based spectrum sweep to find active signals in a frequency range
-- **ADS-B Tracking** — Real-time aircraft monitoring with callsign, altitude, speed, and heading
+- **ADS-B Tracking** — Real-time aircraft monitoring with callsign, altitude, speed, heading, and position (lat/lon)
 - **Thread-Safe** — Mutex-protected hardware access with proper state machine
 - **Graceful Degradation** — Works without hardware connected (reports status accurately)
 
@@ -19,7 +19,18 @@ An MCP (Model Context Protocol) server that gives Claude Desktop real-time acces
 - Python 3.11+
 - RTL-SDR dongle (tested with RTL-SDR Blog V4)
 - librtlsdr library
+- dump1090-fa (for ADS-B tracking)
 - macOS, Linux, or Windows
+
+### Installing dump1090
+
+```bash
+# macOS
+brew install dump1090-fa
+
+# Debian/Ubuntu
+sudo apt install dump1090-fa
+```
 
 ## Quick Start
 
@@ -123,7 +134,7 @@ sdr_mcp/
 ├── server.py      # MCP entry point, tool handlers
 ├── hardware.py    # RTLSDRDevice with mutex + state machine
 ├── scanner.py     # FFT power analysis, band sweeping
-├── adsb.py        # Background ADS-B decoder with pyModeS
+├── adsb.py        # Background ADS-B decoder using dump1090
 ├── models.py      # SignalReading, ScanResult, Aircraft
 └── config.py      # TOML configuration loader
 ```
@@ -144,11 +155,14 @@ Conflicting operations return an error rather than blocking.
 
 ## Dependencies
 
+**Python packages:**
 - [mcp](https://pypi.org/project/mcp/) — Model Context Protocol SDK
 - [pyrtlsdr](https://pypi.org/project/pyrtlsdr/) — RTL-SDR Python bindings
 - [numpy](https://pypi.org/project/numpy/) — Numerical computing
 - [scipy](https://pypi.org/project/scipy/) — FFT and signal processing
-- [pyModeS](https://pypi.org/project/pyModeS/) — ADS-B message decoding
+
+**External tools:**
+- [dump1090-fa](https://github.com/flightaware/dump1090) — ADS-B decoder (used for aircraft tracking)
 
 ## License
 
@@ -161,5 +175,5 @@ Contributions welcome! Please open an issue first to discuss changes.
 ## Acknowledgments
 
 - [RTL-SDR Blog](https://www.rtl-sdr.com/) for hardware and driver support
-- [pyModeS](https://github.com/junzis/pyModeS) for ADS-B decoding
+- [FlightAware](https://github.com/flightaware/dump1090) for dump1090-fa ADS-B decoder
 - [Anthropic](https://anthropic.com) for MCP and Claude

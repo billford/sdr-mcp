@@ -1,11 +1,31 @@
 """Tests for ADS-B monitoring and decoding."""
 
+import json
+import tempfile
 import time
 import pytest
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from sdr_mcp.adsb import ADSBMonitor, get_adsb_monitor
+from sdr_mcp.adsb import ADSBMonitor, get_adsb_monitor, find_dump1090
 from sdr_mcp.models import Aircraft
+
+
+class TestFindDump1090:
+    """Tests for dump1090 binary detection."""
+
+    def test_find_dump1090_in_path(self):
+        """Test finding dump1090 when it's in PATH."""
+        with patch('shutil.which') as mock_which:
+            mock_which.return_value = "/usr/bin/dump1090"
+            result = find_dump1090()
+            assert result == "dump1090"
+
+    def test_find_dump1090_not_found(self):
+        """Test when dump1090 is not installed."""
+        with patch('shutil.which', return_value=None):
+            result = find_dump1090()
+            assert result is None
 
 
 class TestADSBMonitor:
@@ -81,63 +101,127 @@ class TestADSBMonitor:
         assert stats["total_aircraft"] == 5
         assert stats["duration_seconds"] >= 1.0
 
-    def test_start_requires_rtl_adsb(self, monitor):
-        """Test that start() requires rtl_adsb binary."""
-        with patch('shutil.which', return_value=None):
-            with pytest.raises(RuntimeError, match="rtl_adsb not found"):
-                monitor.start()
-
-    def test_start_requires_pymodes(self, monitor):
-        """Test that start() requires pyModeS."""
-        with patch('sdr_mcp.adsb.PYMODES_AVAILABLE', False):
-            with pytest.raises(RuntimeError, match="pyModeS not available"):
+    def test_start_requires_dump1090(self, monitor):
+        """Test that start() requires dump1090 binary."""
+        with patch('sdr_mcp.adsb.find_dump1090', return_value=None):
+            with pytest.raises(RuntimeError, match="dump1090 not found"):
                 monitor.start()
 
 
-class TestADSBLineProcessing:
-    """Tests for rtl_adsb output line processing."""
+class TestAircraftJsonParsing:
+    """Tests for dump1090 aircraft.json parsing."""
 
     @pytest.fixture
     def monitor(self):
         return ADSBMonitor()
 
-    def test_process_line_valid_message(self, monitor):
-        """Test processing valid rtl_adsb output line."""
-        # Real DF17 ADS-B message (28 hex chars)
-        with patch.object(monitor, '_decode_message') as mock_decode:
-            monitor._process_line("*8da8e1f6ea485864ed5c0898d970;")
-            mock_decode.assert_called_once_with("8da8e1f6ea485864ed5c0898d970")
-
-    def test_process_line_ignores_invalid_prefix(self, monitor):
-        """Test that lines without * prefix are ignored."""
-        with patch.object(monitor, '_decode_message') as mock_decode:
-            monitor._process_line("8da8e1f6ea485864ed5c0898d970;")
-            mock_decode.assert_not_called()
-
-    def test_process_line_ignores_invalid_suffix(self, monitor):
-        """Test that lines without ; suffix are ignored."""
-        with patch.object(monitor, '_decode_message') as mock_decode:
-            monitor._process_line("*8da8e1f6ea485864ed5c0898d970")
-            mock_decode.assert_not_called()
-
-    def test_process_line_ignores_wrong_length(self, monitor):
-        """Test that messages with wrong length are ignored."""
-        with patch.object(monitor, '_decode_message') as mock_decode:
-            # Too short
-            monitor._process_line("*8da8e1f6;")
-            mock_decode.assert_not_called()
-
-            # Too long
-            monitor._process_line("*8da8e1f6ea485864ed5c0898d970abcd;")
-            mock_decode.assert_not_called()
-
-
-class TestADSBMessageDecoding:
-    """Tests for ADS-B message decoding."""
-
     @pytest.fixture
-    def monitor(self):
-        return ADSBMonitor()
+    def json_dir(self):
+        """Create a temporary directory for JSON files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    def test_read_aircraft_json_basic(self, monitor, json_dir):
+        """Test parsing basic aircraft data."""
+        aircraft_data = {
+            "now": time.time(),
+            "aircraft": [
+                {
+                    "hex": "a12345",
+                    "flight": "UAL123  ",
+                    "alt_baro": 35000,
+                    "gs": 450.5,
+                    "track": 270.0,
+                    "lat": 41.5,
+                    "lon": -81.6,
+                    "seen": 0.5,
+                }
+            ]
+        }
+
+        json_path = Path(json_dir) / "aircraft.json"
+        with open(json_path, 'w') as f:
+            json.dump(aircraft_data, f)
+
+        monitor._read_aircraft_json(json_path)
+
+        assert len(monitor._aircraft) == 1
+        ac = monitor._aircraft["A12345"]
+        assert ac.callsign == "UAL123"
+        assert ac.altitude_ft == 35000
+        assert ac.speed_kts == 450.5
+        assert ac.heading_deg == 270.0
+        assert ac.lat == 41.5
+        assert ac.lon == -81.6
+
+    def test_read_aircraft_json_multiple(self, monitor, json_dir):
+        """Test parsing multiple aircraft."""
+        aircraft_data = {
+            "now": time.time(),
+            "aircraft": [
+                {"hex": "a11111", "flight": "DAL100"},
+                {"hex": "a22222", "flight": "AAL200"},
+                {"hex": "a33333", "flight": "SWA300"},
+            ]
+        }
+
+        json_path = Path(json_dir) / "aircraft.json"
+        with open(json_path, 'w') as f:
+            json.dump(aircraft_data, f)
+
+        monitor._read_aircraft_json(json_path)
+
+        assert len(monitor._aircraft) == 3
+        assert monitor._total_aircraft_seen == 3
+
+    def test_read_aircraft_json_updates_existing(self, monitor, json_dir):
+        """Test that existing aircraft are updated."""
+        # First read
+        aircraft_data = {
+            "now": time.time(),
+            "aircraft": [{"hex": "a12345", "alt_baro": 30000, "seen": 0}]
+        }
+        json_path = Path(json_dir) / "aircraft.json"
+        with open(json_path, 'w') as f:
+            json.dump(aircraft_data, f)
+        monitor._read_aircraft_json(json_path)
+
+        # Second read with updated altitude
+        aircraft_data["aircraft"][0]["alt_baro"] = 35000
+        with open(json_path, 'w') as f:
+            json.dump(aircraft_data, f)
+        monitor._read_aircraft_json(json_path)
+
+        # Should still be 1 aircraft, with updated altitude
+        assert len(monitor._aircraft) == 1
+        assert monitor._total_aircraft_seen == 1  # Not incremented
+        assert monitor._aircraft["A12345"].altitude_ft == 35000
+
+    def test_read_aircraft_json_handles_ground(self, monitor, json_dir):
+        """Test handling of aircraft on ground."""
+        aircraft_data = {
+            "now": time.time(),
+            "aircraft": [{"hex": "a12345", "alt_baro": "ground", "seen": 0}]
+        }
+
+        json_path = Path(json_dir) / "aircraft.json"
+        with open(json_path, 'w') as f:
+            json.dump(aircraft_data, f)
+
+        monitor._read_aircraft_json(json_path)
+
+        # Should not set altitude for ground aircraft
+        assert monitor._aircraft["A12345"].altitude_ft is None
+
+    def test_read_aircraft_json_invalid_file(self, monitor, json_dir):
+        """Test handling of invalid JSON."""
+        json_path = Path(json_dir) / "aircraft.json"
+        with open(json_path, 'w') as f:
+            f.write("not valid json{{{")
+
+        # Should not raise, just log
+        monitor._read_aircraft_json(json_path)
+        assert len(monitor._aircraft) == 0
 
     def test_prune_stale(self, monitor):
         """Test stale aircraft removal."""
@@ -145,6 +229,7 @@ class TestADSBMessageDecoding:
         old_ac.last_seen_timestamp = time.time() - 120
 
         new_ac = Aircraft(icao_hex="NEW456")
+        new_ac.last_seen_timestamp = time.time()
 
         monitor._aircraft = {
             "OLD123": old_ac,
