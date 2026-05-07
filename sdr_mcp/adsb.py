@@ -112,12 +112,13 @@ class ADSBMonitor:
         # Create temp directory for JSON output
         self._json_dir = tempfile.mkdtemp(prefix="dump1090_")
 
-        # Mark hardware as ADS-B active (for status reporting)
+        # Release Python's handle so dump1090 can claim the device
         try:
             dev = get_device()
             dev.set_state(HardwareState.ADSB_ACTIVE)
+            dev.disconnect()  # dump1090 needs exclusive access
         except Exception as e:
-            logger.warning(f"Could not set hardware state: {e}")
+            logger.warning(f"Could not release device: {e}")
 
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
