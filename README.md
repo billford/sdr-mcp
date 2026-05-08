@@ -36,11 +36,9 @@ sudo apt install dump1090-fa
 
 ### Installing AIS-catcher
 
-```bash
-# macOS
-brew install ais-catcher
+AIS-catcher is not in Homebrew — build from source:
 
-# From source (if not in Homebrew)
+```bash
 git clone https://github.com/jvde-github/AIS-catcher.git
 cd AIS-catcher
 mkdir build && cd build
