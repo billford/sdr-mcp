@@ -146,8 +146,8 @@ class AISMonitor:
         # Release Python's device handle so AIS-catcher can claim it
         try:
             dev = get_device()
+            dev.disconnect()  # AIS-catcher needs exclusive access; disconnect resets state to IDLE
             dev.set_state(HardwareState.AIS_ACTIVE)
-            dev.disconnect()
         except Exception as e:
             logger.warning(f"Could not release device: {e}")
 

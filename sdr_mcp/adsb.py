@@ -115,8 +115,8 @@ class ADSBMonitor:
         # Release Python's handle so dump1090 can claim the device
         try:
             dev = get_device()
+            dev.disconnect()  # dump1090 needs exclusive access; disconnect resets state to IDLE
             dev.set_state(HardwareState.ADSB_ACTIVE)
-            dev.disconnect()  # dump1090 needs exclusive access
         except Exception as e:
             logger.warning(f"Could not release device: {e}")
 
