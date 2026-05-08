@@ -64,6 +64,7 @@ class HardwareState(Enum):
     IDLE = "idle"
     SCANNING = "scanning"
     ADSB_ACTIVE = "adsb"
+    AIS_ACTIVE = "ais"
 
 
 class HardwareError(Exception):
@@ -225,6 +226,10 @@ class RTLSDRDevice:
             if self._state == HardwareState.ADSB_ACTIVE:
                 raise HardwareBusyError(
                     "ADS-B monitor active. Call stop_adsb_monitor first."
+                )
+            if self._state == HardwareState.AIS_ACTIVE:
+                raise HardwareBusyError(
+                    "AIS monitor active. Call stop_ais_monitor first."
                 )
             if self._state == HardwareState.SCANNING:
                 raise HardwareBusyError("Scan in progress.")

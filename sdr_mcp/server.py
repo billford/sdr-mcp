@@ -66,9 +66,13 @@ def cleanup():
     """Clean up hardware on exit."""
     try:
         from .adsb import get_adsb_monitor
-        monitor = get_adsb_monitor()
-        if monitor._running:
-            monitor.stop()
+        adsb = get_adsb_monitor()
+        if adsb._running:
+            adsb.stop()
+        from .ais import get_ais_monitor
+        ais = get_ais_monitor()
+        if ais._running:
+            ais.stop()
         device = get_device()
         device.disconnect()
         logger.info("Cleanup complete")
@@ -199,6 +203,51 @@ async def list_tools() -> list[Tool]:
                 "required": [],
             },
         ),
+        Tool(
+            name="start_ais_monitor",
+            description=(
+                "Start AIS vessel tracking on Lake Erie VHF channels (161.975 / 162.025 MHz). "
+                "Launches AIS-catcher, which takes exclusive RTL-SDR ownership. "
+                "Cannot run while ADS-B monitor is active."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
+        Tool(
+            name="stop_ais_monitor",
+            description=(
+                "Stop AIS vessel tracking and release hardware for other operations. "
+                "Returns total vessels seen and session duration."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
+        Tool(
+            name="get_vessels",
+            description=(
+                "Get currently tracked vessels. Requires AIS monitor to be running. "
+                "Returns vessels seen within max_age_seconds (default 300). "
+                "Each vessel includes MMSI, name, position, speed, heading, course, "
+                "navigation status, vessel type, and destination where available."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "max_age_seconds": {
+                        "type": "integer",
+                        "description": "Maximum age of vessel data to return (seconds)",
+                        "default": 300,
+                    },
+                },
+                "required": [],
+            },
+        ),
     ]
 
 
@@ -220,6 +269,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return await handle_stop_adsb_monitor()
         elif name == "get_aircraft":
             return await handle_get_aircraft()
+        elif name == "start_ais_monitor":
+            return await handle_start_ais_monitor()
+        elif name == "stop_ais_monitor":
+            return await handle_stop_ais_monitor()
+        elif name == "get_vessels":
+            return await handle_get_vessels(arguments)
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except HardwareBusyError as e:
@@ -359,6 +414,61 @@ async def handle_get_aircraft() -> list[TextContent]:
     output = json.dumps([a.to_dict() for a in aircraft], indent=2)
 
     logger.info(f"get_aircraft returning {len(aircraft)} aircraft")
+    return [TextContent(type="text", text=output)]
+
+
+async def handle_start_ais_monitor() -> list[TextContent]:
+    """Handle start_ais_monitor tool call."""
+    from .ais import get_ais_monitor
+
+    device = get_device()
+    device.require_idle()
+
+    monitor = get_ais_monitor()
+    monitor.start()
+
+    return [TextContent(
+        type="text",
+        text="AIS monitor started. Listening on 161.975 MHz and 162.025 MHz.\nInitial vessel count: 0"
+    )]
+
+
+async def handle_stop_ais_monitor() -> list[TextContent]:
+    """Handle stop_ais_monitor tool call."""
+    from .ais import get_ais_monitor
+
+    monitor = get_ais_monitor()
+    stats = monitor.stop()
+
+    lines = [
+        "AIS monitor stopped.",
+        f"Total vessels seen: {stats['total_vessels']}",
+        f"Session duration: {stats['duration_seconds']:.1f} seconds",
+    ]
+    return [TextContent(type="text", text="\n".join(lines))]
+
+
+async def handle_get_vessels(arguments: dict) -> list[TextContent]:
+    """Handle get_vessels tool call."""
+    from .ais import get_ais_monitor
+    from .hardware import HardwareState
+
+    device = get_device()
+    if device.state != HardwareState.AIS_ACTIVE:
+        return [TextContent(
+            type="text",
+            text="AIS monitor not running. Call start_ais_monitor first."
+        )]
+
+    max_age = arguments.get("max_age_seconds", 300)
+    monitor = get_ais_monitor()
+    vessels = monitor.get_vessels(max_age_seconds=float(max_age))
+
+    if not vessels:
+        return [TextContent(type="text", text="No vessels currently tracked.")]
+
+    output = json.dumps([v.to_dict() for v in vessels], indent=2)
+    logger.info(f"get_vessels returning {len(vessels)} vessels")
     return [TextContent(type="text", text=output)]
 
 

@@ -112,3 +112,58 @@ class Aircraft:
             "lon": self.lon,
             "last_seen_seconds_ago": round(self.last_seen_seconds_ago, 1),
         }
+
+
+@dataclass
+class Vessel:
+    """
+    A tracked vessel from AIS reception.
+
+    Represents the current known state of a vessel. Fields are populated
+    as AIS messages are received; not all vessels broadcast all fields.
+
+    Attributes:
+        mmsi: Maritime Mobile Service Identity (9-digit unique vessel ID).
+        name: Vessel name as broadcast. May be None.
+        lat: Latitude in decimal degrees. May be None.
+        lon: Longitude in decimal degrees. May be None.
+        speed_kts: Speed over ground in knots. May be None.
+        heading_deg: True heading in degrees (0-359). May be None.
+        course_deg: Course over ground in degrees. May be None.
+        status: Navigation status (e.g., "Under way using engine"). May be None.
+        vessel_type: Vessel type string (e.g., "Cargo", "Tanker"). May be None.
+        destination: Reported destination port. May be None.
+        last_seen_timestamp: Unix timestamp of last message received.
+    """
+    mmsi: str
+    name: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    speed_kts: Optional[float] = None
+    heading_deg: Optional[int] = None
+    course_deg: Optional[int] = None
+    status: Optional[str] = None
+    vessel_type: Optional[str] = None
+    destination: Optional[str] = None
+    last_seen_timestamp: float = field(default_factory=time.time)
+
+    @property
+    def last_seen_seconds_ago(self) -> float:
+        """Seconds since last AIS message was received from this vessel."""
+        return time.time() - self.last_seen_timestamp
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "mmsi": self.mmsi,
+            "name": self.name,
+            "lat": self.lat,
+            "lon": self.lon,
+            "speed_kts": self.speed_kts,
+            "heading_deg": self.heading_deg,
+            "course_deg": self.course_deg,
+            "status": self.status,
+            "vessel_type": self.vessel_type,
+            "destination": self.destination,
+            "last_seen_seconds_ago": round(self.last_seen_seconds_ago, 1),
+        }
