@@ -126,6 +126,17 @@ class RTLSDRDevice:
         with self._lock:
             return self._sample_rate
 
+    def get_serial(self) -> Optional[str]:
+        """Return the serial number of the first attached RTL-SDR dongle, or None."""
+        if not RTLSDR_AVAILABLE:
+            return None
+        try:
+            serials = RtlSdr.get_device_serial_addresses()
+            return serials[0] if serials else None
+        except Exception as e:
+            logger.debug(f"Could not read device serial: {e}")
+            return None
+
     def connect(self) -> bool:
         """Attempt to connect to the RTL-SDR dongle.
 

@@ -205,7 +205,9 @@ class AISMonitor:
         """Background loop: run AIS-catcher and poll its HTTP API."""
         ais_catcher = find_ais_catcher()
         try:
-            cmd = [ais_catcher, "-d", "0", "-o", "4", "-H", "0.0.0.0", "8100"]
+            # Prefer serial number so the right dongle is used regardless of enumeration order
+            device_id = get_device().get_serial() or "0"
+            cmd = [ais_catcher, "-d", device_id, "-o", "4", "-H", "0.0.0.0", "8100"]
             logger.info(f"Starting AIS-catcher: {' '.join(cmd)}")
 
             self._process = subprocess.Popen(

@@ -193,6 +193,15 @@ Conflicting operations return an error rather than blocking.
 - [dump1090-fa](https://github.com/flightaware/dump1090) — ADS-B decoder (used for aircraft tracking)
 - [AIS-catcher](https://github.com/jvde-github/AIS-catcher) — AIS decoder (used for vessel tracking)
 
+## AIS Reception Notes
+
+AIS signals on Lake Erie are receivable from Chagrin Falls (~20 miles inland) at 23–24 dB SNR on both channels with an indoor antenna. A few things to know:
+
+- **Best times** — Commercial traffic is busiest in the morning and evening. Afternoons, especially in summer, tend to be slower.
+- **Range** — Open-water vessels on the lake should be receivable. Harbor traffic in Cleveland or Toledo may be marginal at this distance.
+- **Update rate** — Vessels update position every few minutes, not continuously like aircraft.
+- **Coverage** — An outdoor antenna pointed north would significantly improve range and vessel count.
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) file.
