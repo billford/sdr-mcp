@@ -1,0 +1,14 @@
+[Unit]
+Description=SDR MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__REPO_DIR__
+ExecStart=__REPO_DIR__/.venv/bin/python -m sdr_mcp.server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

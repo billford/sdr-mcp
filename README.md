@@ -67,7 +67,9 @@ python -c "from sdr_mcp.hardware import get_device; print(get_device().get_statu
 
 ## Claude Desktop Configuration
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or equivalent:
+### Local (MacBook with dongle attached)
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -80,6 +82,28 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   }
 }
 ```
+
+### Remote (Raspberry Pi over SSH)
+
+Run the server on a Pi with the dongle attached and connect via SSH stdio — no open ports needed:
+
+```json
+{
+  "mcpServers": {
+    "sdr": {
+      "command": "ssh",
+      "args": [
+        "-i", "/Users/yourname/.ssh/id_ed25519_sdr",
+        "-o", "StrictHostKeyChecking=no",
+        "yourname@sdr-pi.local",
+        "/home/yourname/sdr-mcp/.venv/bin/python -m sdr_mcp.server"
+      ]
+    }
+  }
+}
+```
+
+See [RASPBERRY_PI.md](RASPBERRY_PI.md) for the full Pi setup walkthrough, including Tailscale for remote access.
 
 ## Available Tools
 
