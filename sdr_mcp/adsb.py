@@ -83,7 +83,7 @@ class ADSBMonitor:
         self._start_time: Optional[float] = None
         self._total_aircraft_seen = 0
 
-    def start(self, device=None) -> None:
+    def start(self, device=None) -> None:  # pylint: disable=unused-argument
         """Start ADS-B monitoring.
 
         Args:
@@ -245,7 +245,7 @@ class ADSBMonitor:
     def _read_aircraft_json(self, json_path: Path) -> None:
         """Read and process dump1090's aircraft.json file."""
         try:
-            with open(json_path, 'r') as f:
+            with open(json_path, encoding="utf-8") as f:
                 data = json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             logger.debug(f"Error parsing aircraft.json: {e}")

@@ -3,9 +3,10 @@
 import json
 import tempfile
 import time
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from sdr_mcp.adsb import ADSBMonitor, get_adsb_monitor, find_dump1090
 from sdr_mcp.models import Aircraft
@@ -113,6 +114,7 @@ class TestAircraftJsonParsing:
 
     @pytest.fixture
     def monitor(self):
+        """Create an ADSBMonitor instance for testing."""
         return ADSBMonitor()
 
     @pytest.fixture
@@ -140,7 +142,7 @@ class TestAircraftJsonParsing:
         }
 
         json_path = Path(json_dir) / "aircraft.json"
-        with open(json_path, 'w') as f:
+        with open(json_path, 'w', encoding="utf-8") as f:
             json.dump(aircraft_data, f)
 
         monitor._read_aircraft_json(json_path)
@@ -166,7 +168,7 @@ class TestAircraftJsonParsing:
         }
 
         json_path = Path(json_dir) / "aircraft.json"
-        with open(json_path, 'w') as f:
+        with open(json_path, 'w', encoding="utf-8") as f:
             json.dump(aircraft_data, f)
 
         monitor._read_aircraft_json(json_path)
@@ -182,13 +184,13 @@ class TestAircraftJsonParsing:
             "aircraft": [{"hex": "a12345", "alt_baro": 30000, "seen": 0}]
         }
         json_path = Path(json_dir) / "aircraft.json"
-        with open(json_path, 'w') as f:
+        with open(json_path, 'w', encoding="utf-8") as f:
             json.dump(aircraft_data, f)
         monitor._read_aircraft_json(json_path)
 
         # Second read with updated altitude
         aircraft_data["aircraft"][0]["alt_baro"] = 35000
-        with open(json_path, 'w') as f:
+        with open(json_path, 'w', encoding="utf-8") as f:
             json.dump(aircraft_data, f)
         monitor._read_aircraft_json(json_path)
 
@@ -205,7 +207,7 @@ class TestAircraftJsonParsing:
         }
 
         json_path = Path(json_dir) / "aircraft.json"
-        with open(json_path, 'w') as f:
+        with open(json_path, 'w', encoding="utf-8") as f:
             json.dump(aircraft_data, f)
 
         monitor._read_aircraft_json(json_path)
@@ -216,7 +218,7 @@ class TestAircraftJsonParsing:
     def test_read_aircraft_json_invalid_file(self, monitor, json_dir):
         """Test handling of invalid JSON."""
         json_path = Path(json_dir) / "aircraft.json"
-        with open(json_path, 'w') as f:
+        with open(json_path, 'w', encoding="utf-8") as f:
             f.write("not valid json{{{")
 
         # Should not raise, just log

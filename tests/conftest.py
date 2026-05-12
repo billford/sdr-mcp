@@ -1,8 +1,9 @@
 """Pytest fixtures for SDR MCP tests."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
 
 
 @pytest.fixture
@@ -29,7 +30,7 @@ def mock_rtlsdr():
 
 
 @pytest.fixture
-def device(mock_rtlsdr):
+def device(mock_rtlsdr):  # pylint: disable=unused-argument
     """Get a device instance with mocked hardware."""
     from sdr_mcp.hardware import RTLSDRDevice
     dev = RTLSDRDevice()

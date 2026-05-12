@@ -80,7 +80,7 @@ def cleanup():
         logger.warning(f"Cleanup error: {e}")
 
 
-def signal_handler(signum, frame):
+def signal_handler(signum, _frame):
     """Handle termination signals."""
     logger.info(f"Received signal {signum}, shutting down...")
     cleanup()
@@ -342,7 +342,10 @@ async def handle_scan_band(arguments: dict) -> list[TextContent]:
     if end_mhz - start_mhz > max_range_mhz:
         return [TextContent(
             type="text",
-            text=f"Scan range too large ({end_mhz - start_mhz} MHz). Maximum is {max_range_mhz} MHz."
+            text=(
+                f"Scan range too large ({end_mhz - start_mhz} MHz). "
+                f"Maximum is {max_range_mhz} MHz."
+            )
         )]
 
     device = get_device()
@@ -385,7 +388,7 @@ async def handle_stop_adsb_monitor() -> list[TextContent]:
     stats = monitor.stop()
 
     lines = [
-        f"ADS-B monitor stopped.",
+        "ADS-B monitor stopped.",
         f"Total aircraft seen: {stats['total_aircraft']}",
         f"Session duration: {stats['duration_seconds']:.1f} seconds",
     ]
@@ -429,7 +432,8 @@ async def handle_start_ais_monitor() -> list[TextContent]:
 
     return [TextContent(
         type="text",
-        text="AIS monitor started. Listening on 161.975 MHz and 162.025 MHz.\nInitial vessel count: 0"
+        text="AIS monitor started. Listening on 161.975 MHz and 162.025 MHz.\n"
+             "Initial vessel count: 0"
     )]
 
 

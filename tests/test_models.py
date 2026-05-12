@@ -1,7 +1,7 @@
 """Tests for data models."""
 
 import time
-import pytest
+
 from sdr_mcp.models import SignalReading, ScanResult, Aircraft
 
 

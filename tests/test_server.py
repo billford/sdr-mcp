@@ -1,8 +1,9 @@
 """Tests for MCP server."""
 
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 import json
+from unittest.mock import patch, MagicMock
+
+import pytest
 
 
 class TestToolHandlers:

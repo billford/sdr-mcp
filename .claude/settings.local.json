@@ -14,7 +14,12 @@
       "Bash(git commit:*)",
       "Bash(git remote set-url:*)",
       "Bash(cat:*)",
-      "Bash(.venv/bin/pip show:*)"
+      "Bash(.venv/bin/pip show:*)",
+      "Bash(git rebase *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(git stash *)",
+      "Bash(git push *)",
+      "Bash(GIT_EDITOR=\"echo\" git rebase --continue)"
     ]
   }
 }

@@ -1,0 +1,53 @@
+[MASTER]
+# Ignore generated files
+ignore-patterns=.*\.pyc
+
+[MESSAGES CONTROL]
+disable=
+    # Intentional lazy imports to avoid circular dependencies and heavy startup cost
+    C0415,
+    # f-strings are idiomatic in Python 3.11+; lazy % formatting is not required
+    W1203,
+    # broad Exception catches are appropriate in server cleanup and subprocess monitoring
+    W0718,
+    # design-complexity metrics — these are tunable thresholds, not correctness issues
+    R0902,
+    R0914,
+    R0913,
+    R0917,
+    R0911,
+    # tests legitimately access private members to verify internal state
+    W0212,
+    # module-level singletons using global are intentional here
+    W0603,
+    # duplicate test assertion blocks are acceptable; extracting them adds no clarity
+    R0801,
+    # small test helper classes with one method are fine
+    R0903,
+    # explicit == [] comparison is clearer in test assertions
+    C1803,
+    # long if/elif dispatch chains are clearer than removing the "el"
+    R1705,
+    # subprocess.Popen for long-running background processes cannot use "with"
+    R1732,
+    # pytest fixtures intentionally reuse outer-scope names
+    W0621,
+    # complex AIS/server dispatch functions have many branches and statements by necessity
+    R0912,
+    R0915
+
+[BASIC]
+# Allow UPPER_CASE, private snake_case, and dunder names at module scope.
+# Also allow UPPER_CASE inside try/except blocks (pylint treats those as variables).
+const-rgx=(_?[a-z][a-z0-9_]*|_?[A-Z][A-Z0-9_]*|__[a-z]+__)$
+variable-rgx=(_?[a-z][a-z0-9_]*|_?[A-Z][A-Z0-9_]*)$
+
+[FORMAT]
+max-line-length=100
+
+[DESIGN]
+max-attributes=10
+
+[TYPECHECK]
+# numpy and scipy members are generated at runtime
+ignored-modules=numpy,scipy

@@ -1,6 +1,5 @@
 """Tests for FFT-based scanning."""
 
-import pytest
 import numpy as np
 
 from sdr_mcp.scanner import calculate_power_dbm, measure_frequency, scan_band

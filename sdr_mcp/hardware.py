@@ -42,7 +42,7 @@ from typing import Optional
 # - ImportError: pyrtlsdr not installed
 # - OSError: librtlsdr.so/dylib not found
 # - AttributeError: librtlsdr version mismatch (missing symbols like rtlsdr_set_dithering)
-RtlSdr = None
+RtlSdr = None  # pylint: disable=invalid-name
 RTLSDR_AVAILABLE = False
 _IMPORT_ERROR = ""
 
@@ -69,12 +69,10 @@ class HardwareState(Enum):
 
 class HardwareError(Exception):
     """Raised when hardware operations fail."""
-    pass
 
 
 class HardwareBusyError(HardwareError):
     """Raised when hardware is busy with another operation."""
-    pass
 
 
 class RTLSDRDevice:

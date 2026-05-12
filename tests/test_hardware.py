@@ -1,13 +1,11 @@
 """Tests for hardware abstraction layer."""
 
 import pytest
-from unittest.mock import patch, MagicMock
 
 from sdr_mcp.hardware import (
     HardwareState,
     HardwareError,
     HardwareBusyError,
-    RTLSDRDevice,
 )
 
 

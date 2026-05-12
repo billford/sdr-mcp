@@ -59,7 +59,7 @@ def calculate_power_dbm(iq_samples: np.ndarray, sample_rate: float) -> tuple[flo
         return -100.0, -100.0, 0.0
 
     # Compute power spectrum using Welch's method for better noise estimation
-    freqs, psd = scipy_signal.welch(
+    _, psd = scipy_signal.welch(
         iq_samples,
         fs=sample_rate,
         nperseg=min(1024, len(iq_samples)),
