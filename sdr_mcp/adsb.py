@@ -187,32 +187,39 @@ class ADSBMonitor:
         dump1090_path = find_dump1090()
 
         try:
-            # Start dump1090 subprocess with JSON output
             cmd = [
                 dump1090_path,
-                "--quiet",  # No stdout output
+                "--quiet",
                 "--write-json", self._json_dir,
-                "--write-json-every", "1",  # Update every second
+                "--write-json-every", "1",
             ]
-            logger.info(f"Starting dump1090: {' '.join(cmd)}")
 
-            self._process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+            # Retry up to 5 times — USB device may be transiently busy after reboot
+            max_attempts = 5
+            retry_delay = 15  # seconds between attempts
+            for attempt in range(1, max_attempts + 1):
+                logger.info(f"Starting dump1090 (attempt {attempt}/{max_attempts}): {' '.join(cmd)}")
 
-            # Give dump1090 time to start up
-            time.sleep(2)
+                self._process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
 
-            # Check if process started successfully
-            if self._process.poll() is not None:
-                stderr = self._process.stderr.read()
-                logger.error(f"dump1090 failed to start: {stderr}")
-                return
+                time.sleep(2)
 
-            logger.info("dump1090 subprocess started")
+                if self._process.poll() is None:
+                    logger.info("dump1090 subprocess started")
+                    break
+
+                output = self._process.stdout.read()
+                if attempt < max_attempts:
+                    logger.warning(f"dump1090 failed to start (attempt {attempt}): {output.strip()} — retrying in {retry_delay}s")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"dump1090 failed to start after {max_attempts} attempts: {output.strip()}")
+                    return
 
             # Poll aircraft.json periodically
             aircraft_json_path = Path(self._json_dir) / "aircraft.json"
@@ -228,9 +235,9 @@ class ADSBMonitor:
 
             # Check if dump1090 exited with error
             if self._process and self._process.poll() is not None:
-                stderr = self._process.stderr.read() if self._process.stderr else ""
-                if stderr:
-                    logger.warning(f"dump1090 exited: {stderr}")
+                output = self._process.stdout.read() if self._process.stdout else ""
+                if output:
+                    logger.warning(f"dump1090 exited: {output.strip()}")
 
         except Exception as e:
             logger.error(f"ADS-B capture error: {e}")

@@ -15,11 +15,21 @@
       "Bash(git remote set-url:*)",
       "Bash(cat:*)",
       "Bash(.venv/bin/pip show:*)",
-      "Bash(git rebase *)",
-      "Bash(GIT_EDITOR=true git rebase --continue)",
-      "Bash(git stash *)",
-      "Bash(git push *)",
-      "Bash(GIT_EDITOR=\"echo\" git rebase --continue)"
+      "Bash(lsof:*)",
+      "Bash(git push:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(brew search:*)",
+      "Bash(brew install:*)",
+      "Bash(dump1090-fa:*)",
+      "Bash(/opt/homebrew/Cellar/dump1090-fa/10.2/bin/dump1090:*)",
+      "Bash(# Check what''s using the device lsof)",
+      "Bash(pkill:*)",
+      "Bash(git *)",
+      "Bash(/Users/billfordx/Documents/mcp-sdr/.venv/bin/python3 *)",
+      "Bash(chmod +x /Users/billfordx/Documents/mcp-sdr/pi-setup.sh)",
+      "Bash(gh run *)",
+      "Bash(gh api *)",
+      "Bash(grep *)"
     ]
   }
 }
