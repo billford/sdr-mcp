@@ -122,6 +122,14 @@ Run the server on a Pi with the dongle attached and connect via SSH stdio — no
 
 See [RASPBERRY_PI.md](RASPBERRY_PI.md) for the full Pi setup walkthrough, including Tailscale for remote access.
 
+### Split Across Two Macs (HackRF on one, RTL-SDR on another)
+
+If your HackRF and RTL-SDR are plugged into different machines, run two
+MCP server entries — one local, one over SSH — so Claude Desktop can use
+both. See [MULTI_MAC_SETUP.md](MULTI_MAC_SETUP.md) for the full
+walkthrough, including why syncing the repo (and especially `.venv`)
+between machines via iCloud/Dropbox breaks things.
+
 ## Available Tools
 
 | Tool | Description |
