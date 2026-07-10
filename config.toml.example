@@ -1,9 +1,14 @@
 # SDR MCP Server Configuration
 # Copy to config.toml to use
+#
+# gain/sample_rate apply to the HackRF (tune_frequency/scan_band/AIS).
+# ADS-B (dump1090) manages the separate RTL-SDR dongle's gain independently.
 
 [sdr]
-gain = "auto"                    # or numeric value like 40
-sample_rate = 2048000            # 2.048 MSPS standard
+gain = "auto"                    # "auto" = fixed defaults (LNA 16dB, VGA 20dB);
+                                  # HackRF has no real auto-gain. Or a numeric
+                                  # dB value (0-62), applied to VGA gain.
+sample_rate = 2048000            # 2.048 MSPS; HackRF supports 2-20 MSPS
 stale_timeout_seconds = 60.0     # Remove aircraft after this many seconds
 noise_floor_threshold_db = 6.0   # Minimum SNR to report signals
 

@@ -1,12 +1,17 @@
 """
-SDR MCP Server - RTL-SDR access for Claude Desktop.
+SDR MCP Server - HackRF and RTL-SDR access for Claude Desktop.
 
 This package provides an MCP (Model Context Protocol) server that gives
-Claude Desktop real-time access to RTL-SDR hardware. It enables:
+Claude Desktop real-time access to SDR hardware. It enables:
 
-- Frequency tuning and signal measurement
-- Band scanning with FFT-based signal detection
-- Live ADS-B aircraft tracking and decoding
+- Frequency tuning and signal measurement (HackRF)
+- Band scanning with FFT-based signal detection (HackRF)
+- Live ADS-B aircraft tracking and decoding (RTL-SDR, via dump1090)
+- Live AIS vessel tracking (HackRF or RTL-SDR, via AIS-catcher)
+
+Note: tune/scan and AIS run against a HackRF One. ADS-B specifically
+requires a separate RTL-SDR dongle -- dump1090 has no HackRF backend in
+the Homebrew-distributed build. See README.md for details.
 
 Example usage with Claude Desktop:
     "What's the SDR status?"
@@ -16,10 +21,11 @@ Example usage with Claude Desktop:
 
 Modules:
     server: MCP server entry point and tool handlers
-    hardware: RTL-SDR device abstraction with thread-safe access
+    hardware: HackRF device abstraction with thread-safe access
     scanner: FFT-based signal analysis and band scanning
-    adsb: ADS-B Mode S decoding and aircraft tracking
-    models: Data classes for signals and aircraft
+    adsb: ADS-B Mode S decoding and aircraft tracking (RTL-SDR/dump1090)
+    ais: AIS vessel tracking (AIS-catcher)
+    models: Data classes for signals, aircraft, and vessels
     config: Configuration file and environment handling
 
 For more information, see:

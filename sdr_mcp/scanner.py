@@ -1,5 +1,5 @@
 """
-FFT-based signal analysis and band scanning for RTL-SDR.
+FFT-based signal analysis and band scanning for HackRF.
 
 This module provides signal measurement and band scanning capabilities
 using Fast Fourier Transform (FFT) based power spectral density analysis.
@@ -40,7 +40,7 @@ from scipy import signal as scipy_signal
 from .models import SignalReading, ScanResult
 
 if TYPE_CHECKING:
-    from .hardware import RTLSDRDevice
+    from .hardware import HackRFDevice
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def measure_frequency(
     """Tune to frequency and measure signal strength.
 
     Args:
-        device: RTLSDRDevice instance.
+        device: HackRFDevice instance.
         frequency_mhz: Target frequency in MHz.
         dwell_ms: Time to collect samples in milliseconds.
 
@@ -129,7 +129,7 @@ def scan_band(
     measure power, move to next frequency.
 
     Args:
-        device: RTLSDRDevice instance.
+        device: HackRFDevice instance.
         start_mhz: Start frequency in MHz.
         end_mhz: End frequency in MHz.
         step_khz: Frequency step in kHz.

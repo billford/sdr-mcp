@@ -122,8 +122,8 @@ class TestScanBand:
         device.set_state(HardwareState.IDLE)
 
         # Force errors by making read_samples raise
-        original = device._sdr.read_samples
-        device._sdr.read_samples = lambda n: (_ for _ in ()).throw(RuntimeError("Test"))
+        original = device.read_samples
+        device.read_samples = lambda n: (_ for _ in ()).throw(RuntimeError("Test"))
 
         try:
             # Scan should complete (with errors logged) rather than raise
@@ -132,7 +132,7 @@ class TestScanBand:
             # Should return empty results since all measurements failed
             assert results == []
         finally:
-            device._sdr.read_samples = original
+            device.read_samples = original
 
         assert device.state == HardwareState.IDLE
 

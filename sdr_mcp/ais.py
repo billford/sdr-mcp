@@ -1,17 +1,28 @@
 """
 AIS (Automatic Identification System) vessel tracking.
 
-Mirrors the ADS-B implementation in adsb.py. AIS-catcher handles the
-RTL-SDR device directly and serves vessel data via HTTP JSON API.
+Mirrors the ADS-B implementation in adsb.py. AIS-catcher handles the SDR
+device directly and serves vessel data via HTTP JSON API.
+
+Unlike ADS-B (which requires a separate RTL-SDR because dump1090 has no
+HackRF backend), AIS-catcher has native HackRF support, so this runs
+against the same HackRF device that hardware.py/scanner.py use. That
+means, unlike adsb.py, tune_frequency/scan_band genuinely cannot run
+concurrently with AIS monitoring -- they'd contend for the same physical
+USB device -- so the AIS_ACTIVE state lock here is a real hardware
+constraint, not just a software convention.
 
 AIS channels:
     Channel A: 161.975 MHz
     Channel B: 162.025 MHz
 
 AIS-catcher invocation:
-    ais-catcher -d 0 -o 4 -H 0.0.0.0 8100
+    ais-catcher -d 0 -o 4 -H 127.0.0.1 8100
 
-Vessel data is polled from http://localhost:8100/vessels.json.
+Vessel data is polled from http://localhost:8100/vessels.json. The HTTP
+API is bound to localhost only (not 0.0.0.0) since nothing outside this
+process ever needs to reach it -- no reason to expose an unauthenticated
+API on the LAN.
 """
 
 import json
@@ -168,8 +179,8 @@ class AISMonitor:
                 logger.warning(f"Error terminating AIS-catcher: {e}")
                 try:
                     self._process.kill()
-                except Exception:
-                    pass
+                except Exception as kill_err:
+                    logger.debug(f"Error killing AIS-catcher (already dead?): {kill_err}")
             self._process = None
 
         if self._thread:
@@ -207,7 +218,7 @@ class AISMonitor:
         try:
             # Prefer serial number so the right dongle is used regardless of enumeration order
             device_id = get_device().get_serial() or "0"
-            cmd = [ais_catcher, "-d", device_id, "-o", "4", "-H", "0.0.0.0", "8100"]
+            cmd = [ais_catcher, "-d", device_id, "-o", "4", "-H", "127.0.0.1", "8100"]
             logger.info(f"Starting AIS-catcher: {' '.join(cmd)}")
 
             self._process = subprocess.Popen(
@@ -245,8 +256,8 @@ class AISMonitor:
             if self._process:
                 try:
                     self._process.terminate()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error terminating AIS-catcher during cleanup: {e}")
                 self._process = None
 
     def _poll_vessels(self) -> None:

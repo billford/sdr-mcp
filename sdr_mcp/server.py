@@ -1,10 +1,11 @@
 """
-MCP server for RTL-SDR hardware access.
+MCP server for SDR hardware access (HackRF + RTL-SDR).
 
 This module implements the Model Context Protocol (MCP) server that exposes
-RTL-SDR functionality to Claude Desktop. It uses stdio transport for
-communication and provides tools for frequency tuning, band scanning,
-and ADS-B aircraft tracking.
+SDR functionality to Claude Desktop. It uses stdio transport for
+communication and provides tools for frequency tuning, band scanning
+(HackRF), ADS-B aircraft tracking (RTL-SDR, via dump1090), and AIS vessel
+tracking (HackRF, via AIS-catcher).
 
 MCP Protocol:
     The server communicates via JSON-RPC over stdin/stdout. All logging
@@ -103,8 +104,8 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="sdr_status",
             description=(
-                "Get RTL-SDR hardware status. Returns connection state, "
-                "current mode (idle/scanning/adsb), gain, sample rate, and "
+                "Get HackRF hardware status. Returns connection state, "
+                "current mode (idle/scanning/adsb/ais), gain, sample rate, and "
                 "active frequency if tuned. Works even if dongle is not connected."
             ),
             inputSchema={
@@ -207,8 +208,8 @@ async def list_tools() -> list[Tool]:
             name="start_ais_monitor",
             description=(
                 "Start AIS vessel tracking on Lake Erie VHF channels (161.975 / 162.025 MHz). "
-                "Launches AIS-catcher, which takes exclusive RTL-SDR ownership. "
-                "Cannot run while ADS-B monitor is active."
+                "Launches AIS-catcher, which takes exclusive HackRF ownership. "
+                "Cannot run while tune_frequency or scan_band is active on the HackRF."
             ),
             inputSchema={
                 "type": "object",

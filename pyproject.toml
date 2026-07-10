@@ -1,11 +1,11 @@
 [project]
 name = "sdr-mcp"
-version = "0.1.0"
-description = "MCP server for RTL-SDR hardware access"
+version = "0.2.0"
+description = "MCP server for SDR hardware access (HackRF tune/scan/AIS, RTL-SDR ADS-B)"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11,<3.15"
-keywords = ["mcp", "rtl-sdr", "sdr", "adsb", "radio", "claude"]
+keywords = ["mcp", "hackrf", "rtl-sdr", "sdr", "adsb", "ais", "radio", "claude"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -18,10 +18,13 @@ classifiers = [
 ]
 dependencies = [
     "mcp",
-    "pyrtlsdr",
     "numpy",
     "scipy",
 ]
+# Note: no HackRF Python binding is listed here. hardware.py drives the
+# device via the hackrf_transfer/hackrf_info CLI tools (brew install hackrf)
+# rather than a ctypes binding, because the popular one (pyhackrf2) hardcodes
+# a Linux .so name and does not load on macOS. See sdr_mcp/hardware.py.
 
 [project.optional-dependencies]
 dev = [
@@ -57,4 +60,22 @@ exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+]
+
+[tool.bandit]
+skips = [
+    # Shelling out to hackrf_transfer/hackrf_info/dump1090/AIS-catcher is the
+    # whole point of this module (see hardware.py's module docstring for why
+    # a ctypes binding isn't used instead) -- the import itself isn't a risk.
+    "B404",
+    # Every subprocess call in this project uses list-form argv (never
+    # shell=True). Arguments are either hardcoded flags/binary names, or
+    # values this codebase generates itself: frequencies/sample rates (ints),
+    # temp file paths from tempfile.NamedTemporaryFile, and device serials
+    # that are regex-validated to be hex strings before use. None of it is
+    # attacker-controlled external input.
+    "B603",
+    # ais.py's VESSELS_URL is a hardcoded "http://localhost:8100/..." constant
+    # (AIS-catcher's own local HTTP API), not a user- or network-supplied URL.
+    "B310",
 ]

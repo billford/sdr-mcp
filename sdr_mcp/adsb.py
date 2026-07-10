@@ -4,6 +4,15 @@ ADS-B (Automatic Dependent Surveillance-Broadcast) monitoring and decoding.
 This module provides real-time aircraft tracking by decoding ADS-B Mode S
 transponder signals at 1090 MHz using an RTL-SDR dongle.
 
+Note: this requires a physical RTL-SDR dongle, separate from the HackRF
+used by hardware.py/scanner.py. The Homebrew-distributed dump1090-fa binary
+is linked against librtlsdr/libbladerf, not libhackrf, so it cannot use a
+HackRF. dump1090 manages the RTL-SDR directly (device enumeration, not a
+serial passed from this module) -- it is unaffected by hardware.py's
+HackRFDevice state beyond the shared IDLE/ADSB_ACTIVE bookkeeping below,
+which is a software convention rather than a hardware necessity since the
+two devices are physically independent.
+
 ADS-B Overview:
     ADS-B is a surveillance technology where aircraft broadcast their
     position, altitude, speed, and identification. It operates on 1090 MHz
@@ -88,7 +97,9 @@ class ADSBMonitor:
 
         Args:
             device: Optional device parameter (ignored, kept for API compat).
-                    dump1090 manages the RTL-SDR device directly.
+                    dump1090 manages its own RTL-SDR device directly; it is
+                    a separate physical device from the HackRF this module
+                    otherwise coordinates with via HardwareState.
         """
         if self._running:
             return
@@ -112,10 +123,12 @@ class ADSBMonitor:
         # Create temp directory for JSON output
         self._json_dir = tempfile.mkdtemp(prefix="dump1090_")
 
-        # Release Python's handle so dump1090 can claim the device
+        # Mark the shared state machine busy. dump1090 talks to its own RTL-SDR
+        # directly (a separate physical device from the HackRF), so this is a
+        # software convention -- not required for USB exclusivity -- kept so
+        # scan_band/tune_frequency don't run concurrently with ADS-B by default.
         try:
             dev = get_device()
-            dev.disconnect()  # dump1090 needs exclusive access; disconnect resets state to IDLE
             dev.set_state(HardwareState.ADSB_ACTIVE)
         except Exception as e:
             logger.warning(f"Could not release device: {e}")
@@ -138,8 +151,8 @@ class ADSBMonitor:
                 logger.warning(f"Error terminating dump1090: {e}")
                 try:
                     self._process.kill()
-                except Exception:
-                    pass
+                except Exception as kill_err:
+                    logger.debug(f"Error killing dump1090 (already dead?): {kill_err}")
             self._process = None
 
         if self._thread:
@@ -198,7 +211,9 @@ class ADSBMonitor:
             max_attempts = 5
             retry_delay = 15  # seconds between attempts
             for attempt in range(1, max_attempts + 1):
-                logger.info(f"Starting dump1090 (attempt {attempt}/{max_attempts}): {' '.join(cmd)}")
+                logger.info(
+                    f"Starting dump1090 (attempt {attempt}/{max_attempts}): {' '.join(cmd)}"
+                )
 
                 self._process = subprocess.Popen(
                     cmd,
@@ -215,10 +230,16 @@ class ADSBMonitor:
 
                 output = self._process.stdout.read()
                 if attempt < max_attempts:
-                    logger.warning(f"dump1090 failed to start (attempt {attempt}): {output.strip()} — retrying in {retry_delay}s")
+                    logger.warning(
+                        f"dump1090 failed to start (attempt {attempt}): "
+                        f"{output.strip()} — retrying in {retry_delay}s"
+                    )
                     time.sleep(retry_delay)
                 else:
-                    logger.error(f"dump1090 failed to start after {max_attempts} attempts: {output.strip()}")
+                    logger.error(
+                        f"dump1090 failed to start after {max_attempts} attempts: "
+                        f"{output.strip()}"
+                    )
                     return
 
             # Poll aircraft.json periodically
@@ -245,8 +266,8 @@ class ADSBMonitor:
             if self._process:
                 try:
                     self._process.terminate()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error terminating dump1090 during cleanup: {e}")
                 self._process = None
 
     def _read_aircraft_json(self, json_path: Path) -> None:
