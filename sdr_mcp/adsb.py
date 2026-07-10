@@ -224,11 +224,15 @@ class ADSBMonitor:
 
                 time.sleep(2)
 
-                if self._process.poll() is None:
+                process = self._process
+                if process is None:
+                    logger.info("dump1090 subprocess stopped during startup")
+                    return
+                if process.poll() is None:
                     logger.info("dump1090 subprocess started")
                     break
 
-                output = self._process.stdout.read()
+                output = process.stdout.read()
                 if attempt < max_attempts:
                     logger.warning(
                         f"dump1090 failed to start (attempt {attempt}): "
@@ -245,7 +249,10 @@ class ADSBMonitor:
             # Poll aircraft.json periodically
             aircraft_json_path = Path(self._json_dir) / "aircraft.json"
 
-            while self._running and self._process.poll() is None:
+            while self._running:
+                process = self._process
+                if process is None or process.poll() is not None:
+                    break
                 try:
                     if aircraft_json_path.exists():
                         self._read_aircraft_json(aircraft_json_path)
@@ -255,8 +262,9 @@ class ADSBMonitor:
                 time.sleep(JSON_POLL_INTERVAL)
 
             # Check if dump1090 exited with error
-            if self._process and self._process.poll() is not None:
-                output = self._process.stdout.read() if self._process.stdout else ""
+            process = self._process
+            if process and process.poll() is not None:
+                output = process.stdout.read() if process.stdout else ""
                 if output:
                     logger.warning(f"dump1090 exited: {output.strip()}")
 
